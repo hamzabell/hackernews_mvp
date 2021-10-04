@@ -1,0 +1,57 @@
+version: "3"
+services:
+  api:
+    build:
+      context: .
+    volumes:
+      - ./:/app
+    ports:
+      - 8000:8000
+    environment:
+      - DB_HOST=db
+      - DB_NAME=hackernews
+      - DB_USER=develops
+      - DB_PASS=pass123
+    depends_on:
+      db:
+        condition: service_healthy
+    links:
+      - db
+    command: >
+      sh -c "python manage.py runserver 0.0.0.0:8000"
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_DB=hackernews
+      - POSTGRES_USER=develops
+      - POSTGRES_PASSWORD=pass123
+    ports:
+      - 3003:5432
+    volumes:
+      - .dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U develops -d hackernews"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:alpine
+  celery:
+    restart: always
+    build:
+      context: .
+    command: celery -A app worker -B -l info
+    volumes:
+      - .:/app
+    environment:
+      - DB_HOST=db
+      - DB_NAME=hackernews
+      - DB_USER=develops
+      - DB_PASS=pass123
+    depends_on:
+      - db
+      - redis
+      - api
+volumes:
+  .dbdata:
